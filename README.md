@@ -120,7 +120,7 @@ CodeLens/
 
 ```bash
 git clone https://github.com/Nasibyun/ai-code-reviewer.git
-cd codelens
+cd ai-code-reviewer
 ```
 
 ---
