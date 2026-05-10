@@ -91,12 +91,6 @@ Supports multiple languages including:
 
 ---
 
-# 📸 Preview
-
-<img width="1400" alt="CodeLens Preview" src="./preview.png" />
-
----
-
 # 📂 Project Structure
 
 ```bash
