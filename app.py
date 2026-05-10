@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="./"), name="static")
+app.mount("/static", StaticFiles(directory="."), name="static")
 
 class CodeInput(BaseModel):
     code: str
