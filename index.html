@@ -1240,7 +1240,7 @@ var dbPassword = "admin123";`;
       renderResults(data);
       toast('Review complete', 'ok');
     } catch (err) {
-      resultsArea.innerHTML = `<div class="err-box"><i class="fas fa-triangle-exclamation"></i><div><h4>Connection Failed</h4><p>Could not reach <code>http://127.0.0.1:8000/review</code>. Ensure the backend is running.<br>Error: ${esc(err.message)}</p></div></div>`;
+      resultsArea.innerHTML = `<div class="err-box"><i class="fas fa-triangle-exclamation"></i><div><h4>Connection Failed</h4><p>Could not reach <code>https://codelens-ai.up.railway.app/review</code>. Ensure the backend is running.<br>Error: ${esc(err.message)}</p></div></div>`;
       toast('Connection failed', 'err');
     } finally {
       reviewBtn.classList.remove('loading');
