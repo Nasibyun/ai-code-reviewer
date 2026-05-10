@@ -103,12 +103,11 @@ CodeLens/
 │
 ├── frontend/
 │   ├── index.html
-│   ├── style.css
-│   └── script.js
 │
 ├── backend/
 │   ├── main.py
 │   ├── reviewer.py
+|   ├── request.py
 │   ├── fixer.py
 │   ├── executor.py
 │   ├── parser.py
