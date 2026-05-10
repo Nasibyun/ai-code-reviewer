@@ -125,7 +125,7 @@ CodeLens/
 ## 1️⃣ Clone Repository
 
 ```bash
-git clone https://github.com/your-username/codelens.git
+git clone https://github.com/Nasibyun/ai-code-reviewer.git
 cd codelens
 ```
 
