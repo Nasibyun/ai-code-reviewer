@@ -12,13 +12,9 @@ def review_code_logic(code):
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             return {"error": "No API key found"}
-        try:
-            execution_result = run_code(code)
-        except Exception as e:
-            execution_result = f"Execution failed: {str(e)}"
         
-        # execution_result = "Execution disabled in deployed version"
-
+        execution_result = "Code execution disabled in deployed version"
+        
         combined_input = f"Code:\n{code}\n\nExecution Result:\n{execution_result}"
         payload = prompt.get_review_prompt(combined_input, 6000, None)
         result = request.send_request(api_key, payload, "Reviewing...")
