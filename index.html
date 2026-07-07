@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<title>CodeLens — AI Code Reviewer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  :root {
+    --bg: #07080f;
+    --bg-elevated: #0d0e1a;
+    --card: #11121e;
+    --card-hover: #161728;
+    --card-raised: #1b1d2e;
+    --border: #1e2038;
+    --border-active: #2d3058;
+    --border-subtle: #181930;
+    --fg: #eeeef5;
+    --fg-secondary: #8b8fb8;
+    --muted: #4a4d6e;
+    --accent: #818cf8;
+    --accent-bright: #a5b4fc;
+    --accent-dim: rgba(129, 140, 248, 0.1);
+    --accent-glow: rgba(129, 140, 248, 0.22);
+    --accent-border: rgba(129, 140, 248, 0.22);
+    --error: #f87171;
+    --error-dim: rgba(248, 113, 113, 0.1);
+    --error-border: rgba(248, 113, 113, 0.2);
+    --warning: #fb923c;
+    --warning-dim: rgba(251, 146, 60, 0.1);
+    --warning-border: rgba(251, 146, 60, 0.2);
+    --info: #38bdf8;
+    --info-dim: rgba(56, 189, 248, 0.1);
+    --info-border: rgba(56, 189, 248, 0.2);
+    --success: #34d399;
+    --success-dim: rgba(52, 211, 153, 0.1);
+    --success-border: rgba(52, 211, 153, 0.2);
+    --purple: #c084fc;
+    --purple-dim: rgba(192, 132, 252, 0.1);
+    --purple-border: rgba(192, 132, 252, 0.2);
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 7px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+    /* Syntax tokens — One Dark inspired */
+    --tok-keyword: #c678dd;
+    --tok-string: #98c379;
+    --tok-number: #d19a66;
+    --tok-comment: #5c6370;
+    --tok-function: #61afef;
+    --tok-type: #e5c07b;
+    --tok-operator: #56b6c2;
+    --tok-constant: #d19a66;
+    --tok-tag: #e06c75;
+    --tok-attr: #d19a66;
+    --tok-punct: #abb2bf;
+    --tok-variable: #e06c75;
+    --tok-preproc: #c678dd;
+    --tok-decorator: #e5c07b;
+    --tok-regex: #98c379;
+    --tok-builtin: #61afef;
+    --tok-default: #abb2bf;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99,102,241,0.08), transparent);
+  }
+
+  ::selection { background: rgba(129,140,248,0.2); color: #c7d2fe; }
+
+  .ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .ambient .orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(140px); opacity: 0.35;
+    animation: orbDrift 24s ease-in-out infinite alternate;
+  }
+  .orb-1 { width: 600px; height: 600px; background: radial-gradient(circle, rgba(99,102,241,0.22), transparent 70%); top: -15%; left: -8%; animation-duration: 26s; }
+  .orb-2 { width: 450px; height: 450px; background: radial-gradient(circle, rgba(168,85,247,0.14), transparent 70%); bottom: -12%; right: -6%; animation-duration: 20s; animation-delay: -10s; }
+  .orb-3 { width: 350px; height: 350px; background: radial-gradient(circle, rgba(99,102,241,0.1), transparent 70%); top: 35%; right: 20%; animation-duration: 28s; animation-delay: -5s; }
+  .noise {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.025;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .grid-bg {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: radial-gradient(ellipse 60% 40% at 50% 20%, black, transparent);
+  }
+  @keyframes orbDrift {
+    0% { transform: translate(0,0) scale(1); }
+    50% { transform: translate(50px,-40px) scale(1.08); }
+    100% { transform: translate(-30px,25px) scale(0.95); }
+  }
+
+  .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* === Header === */
+  header {
+    padding: 0 32px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(24px) saturate(1.2);
+    background: rgba(7,8,15,0.82);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .logo { display: flex; align-items: center; gap: 11px; }
+  .logo-mark {
+    width: 34px; height: 34px;
+    background: linear-gradient(140deg, #818cf8, #6d28d9);
+    border-radius: var(--radius-xs);
+    display: grid; place-items: center;
+    position: relative; overflow: hidden;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+  .logo-mark i { font-size: 15px; color: #000; position: relative; z-index: 1; }
+  .logo-mark::after { content: ''; position: absolute; inset: 0; background: linear-gradient(140deg, transparent 40%, rgba(255,255,255,0.2)); }
+  .logo-name { font-size: 18px; font-weight: 700; letter-spacing: -0.6px; }
+  .logo-name b { color: var(--accent); font-weight: 800; }
+  .header-right { display: flex; align-items: center; gap: 18px; }
+  .kbd-hint { font-size: 11px; color: var(--muted); font-family: var(--mono); display: flex; align-items: center; gap: 6px; }
+  .kbd {
+    display: inline-flex; padding: 2px 7px; border-radius: 4px;
+    background: var(--card); border: 1px solid var(--border);
+    font-size: 10px; color: var(--fg-secondary); font-family: var(--mono);
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--accent-bright); font-weight: 600;
+    padding: 5px 12px; border-radius: 20px;
+    background: var(--accent-dim); border: 1px solid var(--accent-border);
+  }
+  .status-dot {
+    width: 6px; height: 6px; background: var(--accent);
+    border-radius: 50%; box-shadow: 0 0 8px var(--accent-glow);
+    animation: dotPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes dotPulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+
+  /* === Main === */
+  main { flex: 1; padding: 24px 32px 48px; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+  .hero { text-align: center; padding: 28px 0 36px; }
+  .hero h1 {
+    font-size: clamp(28px, 4.5vw, 44px);
+    font-weight: 800; letter-spacing: -1.8px; line-height: 1.08; margin-bottom: 12px;
+  }
+  .hero h1 .grad {
+    background: linear-gradient(135deg, #818cf8, #c084fc, #a5b4fc);
+    background-size: 200% 200%;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    animation: gradShift 6s ease-in-out infinite alternate;
+  }
+  @keyframes gradShift { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+  .hero p { color: var(--fg-secondary); font-size: 16px; max-width: 480px; margin: 0 auto; line-height: 1.65; font-weight: 400; }
+
+  /* === Editor === */
+  .editor-wrap {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    position: relative;
+  }
+  .editor-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(129,140,248,0.15), 0 12px 48px rgba(0,0,0,0.35);
+  }
+  .editor-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+  }
+  .editor-bar-left { display: flex; align-items: center; gap: 8px; }
+  .editor-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .editor-dot.r { background: #f0564a; }
+  .editor-dot.y { background: #f5a623; }
+  .editor-dot.g { background: #2dd4a0; }
+  .editor-filename { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: 8px; }
+  .editor-lang-badge {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px;
+    background: var(--accent-dim); color: var(--accent);
+    border: 1px solid var(--accent-border); margin-left: 8px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    display: none;
+  }
+  .editor-lang-badge.visible { display: inline-block; }
+  .editor-actions { display: flex; gap: 4px; }
+  .ea-btn {
+    width: 28px; height: 28px; border-radius: var(--radius-xs);
+    border: 1px solid transparent; background: transparent;
+    color: var(--muted); cursor: pointer; display: grid; place-items: center;
+    font-size: 11px; transition: all 0.2s;
+  }
+  .ea-btn:hover { background: var(--card-hover); color: var(--fg-secondary); border-color: var(--border); }
+
+  /* Highlighted editor overlay */
+  .editor-body { display: flex; min-height: 300px; max-height: 440px; position: relative; }
+  .gutter {
+    padding: 16px 0; min-width: 52px; text-align: right;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+    color: var(--muted); user-select: none;
+    border-right: 1px solid var(--border-subtle);
+    background: rgba(0,0,0,0.15); overflow: hidden;
+    flex-shrink: 0;
+  }
+  .gutter div { padding-right: 12px; transition: background 0.15s, color 0.15s; }
+  .gutter div.active-line { color: var(--fg-secondary); background: rgba(129,140,248,0.07); }
+
+  .editor-code-area { flex: 1; position: relative; overflow: hidden; }
+  .highlight-pre, #codeInput {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+    padding: 16px 20px; margin: 0;
+    white-space: pre; word-wrap: normal; overflow: auto;
+    tab-size: 2; -moz-tab-size: 2;
+  }
+  .highlight-pre {
+    position: absolute; inset: 0; z-index: 1;
+    color: var(--tok-default);
+    pointer-events: none;
+    background: transparent;
+  }
+  #codeInput {
+    position: relative; z-index: 2;
+    color: transparent;
+    caret-color: var(--accent-bright);
+    background: transparent;
+    border: none; outline: none; resize: none;
+    width: 100%; height: 100%;
+    min-height: 100%;
+  }
+  #codeInput::placeholder { color: var(--muted); }
+  #codeInput::-webkit-scrollbar, .highlight-pre::-webkit-scrollbar { width: 6px; height: 6px; }
+  #codeInput::-webkit-scrollbar-track, .highlight-pre::-webkit-scrollbar-track { background: transparent; }
+  #codeInput::-webkit-scrollbar-thumb, .highlight-pre::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+
+  /* Active line highlight */
+  .active-line-bg {
+    position: absolute; left: 0; right: 0; height: calc(12.5px * 1.75);
+    background: rgba(129,140,248,0.05);
+    border-left: 2px solid #818cf8;
+    pointer-events: none; z-index: 0;
+    transition: top 0.08s ease;
+    display: none;
+  }
+
+  /* Syntax token classes */
+  .tok-keyword { color: var(--tok-keyword); font-weight: 500; }
+  .tok-string { color: var(--tok-string); }
+  .tok-number { color: var(--tok-number); }
+  .tok-comment { color: var(--tok-comment); font-style: italic; }
+  .tok-function { color: var(--tok-function); }
+  .tok-type { color: var(--tok-type); }
+  .tok-operator { color: var(--tok-operator); }
+  .tok-constant { color: var(--tok-constant); }
+  .tok-tag { color: var(--tok-tag); }
+  .tok-attr { color: var(--tok-attr); }
+  .tok-punct { color: var(--tok-punct); }
+  .tok-variable { color: var(--tok-variable); }
+  .tok-preproc { color: var(--tok-preproc); }
+  .tok-decorator { color: var(--tok-decorator); }
+  .tok-regex { color: var(--tok-regex); }
+  .tok-builtin { color: var(--tok-builtin); }
+
+  /* === Toolbar === */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; gap: 12px; flex-wrap: wrap; }
+  .tb-left { display: flex; align-items: center; gap: 10px; }
+  .lang-sel {
+    padding: 8px 32px 8px 12px; border-radius: var(--radius-xs);
+    border: 1px solid var(--border); background: var(--card);
+    color: var(--fg-secondary); font-family: var(--sans);
+    font-size: 12.5px; font-weight: 500; cursor: pointer; outline: none;
+    transition: all 0.2s; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%239498a1' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 11px center;
+  }
+  .lang-sel:hover { border-color: var(--border-active); }
+  .lang-sel:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .char-info { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .btn-review {
+    padding: 10px 24px; border-radius: var(--radius-sm);
+    border: none; background: linear-gradient(135deg, #818cf8, #6d28d9); color: #fff;
+    font-family: var(--sans); font-size: 13.5px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; gap: 9px;
+    transition: all 0.25s; position: relative; overflow: hidden;
+    letter-spacing: -0.2px;
+  }
+  .btn-review::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent, rgba(255,255,255,0.15));
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .btn-review:hover::after { opacity: 1; }
+  .btn-review:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(45,212,160,0.38), 0 0 60px rgba(45,212,160,0.1); }
+  .btn-review:active { transform: translateY(0); }
+  .btn-review:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+  .btn-review i { font-size: 12px; position: relative; z-index: 1; }
+  .btn-review span { position: relative; z-index: 1; }
+  .spin-sm {
+    width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.55s linear infinite; display: none;
+    position: relative; z-index: 1;
+  }
+  .btn-review.loading .spin-sm { display: block; }
+  .btn-review.loading .btn-ico { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* === Results === */
+  #resultsArea { min-height: 0; }
+  .results-wrap { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  .results-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .results-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 9px; }
+  .results-head h2 i { color: var(--accent); font-size: 15px; }
+  .results-time { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* Score */
+  .score-panel {
+    background: var(--card); border: 1px solid var(--border); background-image: radial-gradient(ellipse 60% 40% at 80% 20%, rgba(99,102,241,0.05), transparent);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 18px;
+    display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center;
+    position: relative; overflow: hidden;
+  }
+  .score-panel::before {
+    content: ''; position: absolute; top: -50%; right: -30%; width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(99,102,241,0.12), transparent 70%);
+    pointer-events: none;
+  }
+  .ring-wrap { position: relative; width: 120px; height: 120px; }
+  .ring-wrap svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--border); stroke-width: 7; }
+  .ring-fg {
+    fill: none; stroke-width: 7; stroke-linecap: round;
+    transition: stroke-dashoffset 1.4s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.3s;
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+  }
+  .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-num { font-size: 36px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  .ring-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin-top: 5px; }
+  .score-info { min-width: 0; position: relative; z-index: 1; }
+  .score-summary { font-size: 14px; font-weight: 600; margin-bottom: 14px; line-height: 1.5; color: var(--fg); }
+  .stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; font-family: var(--mono);
+    border: 1px solid transparent;
+  }
+  .chip.err { background: var(--error-dim); color: var(--error); border-color: var(--error-border); }
+  .chip.wrn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning-border); }
+  .chip.inf { background: var(--info-dim); color: var(--info); border-color: var(--info-border); }
+  .chip.ok  { background: var(--success-dim); color: var(--success); border-color: var(--success-border); }
+
+  /* Filter */
+  .filter-bar {
+    display: flex; gap: 4px; margin-bottom: 14px;
+    padding: 4px; background: var(--bg-elevated);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+    width: fit-content;
+  }
+  .filter-btn {
+    padding: 6px 14px; border-radius: var(--radius-xs);
+    border: none; background: transparent;
+    color: var(--muted); font-family: var(--sans);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+  }
+  .filter-btn:hover { color: var(--fg-secondary); }
+  .filter-btn.active { background: var(--card-raised); color: var(--fg); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+  .filter-btn .cnt { font-size: 10px; font-family: var(--mono); padding: 1px 5px; border-radius: 8px; background: var(--border); color: var(--muted); }
+  .filter-btn.active .cnt { background: var(--accent-dim); color: var(--accent); }
+
+  /* Issues */
+  .issues-list { display: flex; flex-direction: column; gap: 8px; }
+  .issue {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); overflow: hidden;
+    transition: all 0.2s; cursor: default;
+    animation: issueIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .issue:hover { border-color: var(--border-active); background: var(--card-hover); }
+  @keyframes issueIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .issue-top { display: flex; gap: 12px; padding: 14px 16px; }
+  .issue-accent { width: 3px; border-radius: 2px; flex-shrink: 0; }
+  .issue.err .issue-accent { background: var(--error); box-shadow: 0 0 8px var(--error-dim); }
+  .issue.wrn .issue-accent { background: var(--warning); box-shadow: 0 0 8px var(--warning-dim); }
+  .issue.inf .issue-accent { background: var(--info); box-shadow: 0 0 8px var(--info-dim); }
+  .issue.ok  .issue-accent { background: var(--success); box-shadow: 0 0 8px var(--success-dim); }
+  .issue-ico { width: 30px; height: 30px; border-radius: var(--radius-xs); display: grid; place-items: center; flex-shrink: 0; font-size: 12px; }
+  .issue.err .issue-ico { background: var(--error-dim); color: var(--error); }
+  .issue.wrn .issue-ico { background: var(--warning-dim); color: var(--warning); }
+  .issue.inf .issue-ico { background: var(--info-dim); color: var(--info); }
+  .issue.ok  .issue-ico { background: var(--success-dim); color: var(--success); }
+  .issue-content { flex: 1; min-width: 0; }
+  .issue-hdr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .issue-title { font-size: 13px; font-weight: 600; }
+  .issue-tag { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.6px; font-family: var(--mono); }
+  .issue.err .issue-tag { background: var(--error-dim); color: var(--error); }
+  .issue.wrn .issue-tag { background: var(--warning-dim); color: var(--warning); }
+  .issue.inf .issue-tag { background: var(--info-dim); color: var(--info); }
+  .issue.ok  .issue-tag { background: var(--success-dim); color: var(--success); }
+  .issue-desc { font-size: 12.5px; color: var(--fg-secondary); line-height: 1.55; margin-top: 4px; }
+  .issue-loc { font-size: 10.5px; color: var(--muted); font-family: var(--mono); margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+
+  .fix-block { margin: 0 16px 14px; padding: 12px 14px; background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: var(--radius-xs); }
+  .fix-lbl { font-size: 9.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .fix-code { font-family: var(--mono); font-size: 11.5px; color: var(--fg); line-height: 1.65; white-space: pre-wrap; word-break: break-all; }
+
+  /* Section cards */
+  .section-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin-top: 12px;
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    position: relative;
+  }
+  .section-hdr { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); background: linear-gradient(135deg, var(--bg-elevated) 0%, rgba(20,21,23,0.6) 100%); }
+  .section-ico { width: 28px; height: 28px; border-radius: var(--radius-xs); display: grid; place-items: center; font-size: 12px; }
+  .section-hdr h3 { font-size: 13px; font-weight: 700; letter-spacing: -0.3px; flex: 1; }
+  .section-body { padding: 18px; }
+
+  .complexity-ico { background: var(--purple-dim); color: var(--purple); }
+  .complexity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cx-card { padding: 14px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elevated); position: relative; overflow: hidden; }
+  .cx-card::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #818cf8, transparent); opacity: 0.4; }
+  .cx-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 6px; }
+  .cx-val { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--purple); letter-spacing: -0.5px; }
+  .cx-desc { font-size: 11.5px; color: var(--fg-secondary); line-height: 1.5; margin-top: 8px; font-weight: 400; }
+
+  .opt-ico { background: var(--warning-dim); color: var(--warning); }
+  .opt-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .opt-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--fg-secondary); line-height: 1.55; padding: 8px 12px; border-radius: var(--radius-xs); background: var(--bg-elevated); border: 1px solid var(--border); transition: border-color 0.2s; }
+  .opt-list li:hover { border-color: var(--warning-border); }
+  .opt-list li .opt-num { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--warning); background: var(--warning-dim); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
+
+  .optcode-ico { background: var(--accent-dim); color: var(--accent); }
+  .code-block { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  .code-block-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+  .code-block-bar span { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .copy-btn {
+    padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
+    background: var(--card); color: var(--fg-secondary); font-family: var(--sans);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .copy-btn.copied { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .code-block pre {
+    padding: 16px 18px; font-family: var(--mono); font-size: 12px;
+    line-height: 1.7; overflow-x: auto; margin: 0; white-space: pre-wrap; word-break: break-all;
+  }
+  .code-block pre::-webkit-scrollbar { height: 5px; }
+  .code-block pre::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+
+  /* Highlighted code inside results */
+  .code-block pre .tok-keyword { color: var(--tok-keyword); font-weight: 500; }
+  .code-block pre .tok-string { color: var(--tok-string); }
+  .code-block pre .tok-number { color: var(--tok-number); }
+  .code-block pre .tok-comment { color: var(--tok-comment); font-style: italic; }
+  .code-block pre .tok-function { color: var(--tok-function); }
+  .code-block pre .tok-type { color: var(--tok-type); }
+  .code-block pre .tok-operator { color: var(--tok-operator); }
+  .code-block pre .tok-constant { color: var(--tok-constant); }
+  .code-block pre .tok-tag { color: var(--tok-tag); }
+  .code-block pre .tok-attr { color: var(--tok-attr); }
+  .code-block pre .tok-punct { color: var(--tok-punct); }
+  .code-block pre .tok-variable { color: var(--tok-variable); }
+  .code-block pre .tok-preproc { color: var(--tok-preproc); }
+  .code-block pre .tok-decorator { color: var(--tok-decorator); }
+  .code-block pre .tok-regex { color: var(--tok-regex); }
+  .code-block pre .tok-builtin { color: var(--tok-builtin); }
+
+  .verdict-ico { background: var(--accent-dim); color: var(--accent); }
+  .verdict-text { font-size: 14px; color: var(--fg-secondary); line-height: 1.65; font-weight: 500; }
+
+  /* Empty / Error */
+  .empty-box { text-align: center; padding: 56px 20px; color: var(--muted); }
+  .empty-box i { font-size: 40px; opacity: 0.2; margin-bottom: 14px; display: block; }
+  .empty-box h3 { font-size: 15px; font-weight: 600; color: var(--fg-secondary); margin-bottom: 5px; }
+  .empty-box p { font-size: 12.5px; }
+
+  .err-box {
+    background: var(--error-dim); border: 1px solid var(--error-border);
+    border-radius: var(--radius-sm); padding: 18px 22px;
+    display: flex; align-items: flex-start; gap: 12px; animation: slideUp 0.4s ease;
+  }
+  .err-box i { color: var(--error); font-size: 18px; margin-top: 2px; }
+  .err-box h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .err-box p { font-size: 12.5px; color: var(--fg-secondary); line-height: 1.55; }
+  .err-box code { font-family: var(--mono); font-size: 11px; background: var(--error-dim); padding: 2px 6px; border-radius: 4px; }
+
+  .loading-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; text-align: center; animation: slideUp 0.3s ease; }
+  .loading-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 14px; }
+  .loading-box p { font-size: 13px; color: var(--fg-secondary); }
+  .loading-box .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Loading dots animation */
+  .loading-dots { display: inline-flex; gap: 4px; margin-left: 4px; }
+  .loading-dots span {
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+    animation: dotBounce 1.2s ease-in-out infinite;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dotBounce { 0%,80%,100% { opacity:0.2; transform:scale(0.8); } 40% { opacity:1; transform:scale(1.2); } }
+
+  /* Toast */
+  .toast-wrap { position: fixed; top: 72px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 6px; }
+  .toast {
+    background: var(--card-raised); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 16px;
+    font-size: 12.5px; font-weight: 500;
+    display: flex; align-items: center; gap: 9px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    animation: tIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    min-width: 220px; backdrop-filter: blur(12px);
+  }
+  .toast.out { animation: tOut 0.25s ease forwards; }
+  @keyframes tIn { from { opacity:0; transform: translateX(30px); } to { opacity:1; transform: translateX(0); } }
+  @keyframes tOut { to { opacity:0; transform: translateX(30px); } }
+
+  footer { padding: 18px 32px; border-top: 1px solid var(--border); text-align: center; font-size: 11px; color: var(--muted); }
+
+  /* Separator line between editor and results */
+  .results-sep {
+    height: 1px; margin: 8px 0 24px;
+    background: linear-gradient(90deg, transparent, var(--border-active) 30%, var(--border-active) 70%, transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .results-sep.visible { opacity: 1; }
+
+  @media (max-width: 768px) {
+    header { padding: 0 16px; }
+    main { padding: 16px 14px 36px; }
+    .hero { padding: 18px 0 24px; }
+    .hero p { font-size: 14.5px; }
+    .editor-body { min-height: 220px; }
+    .score-panel { grid-template-columns: 1fr; justify-items: center; gap: 18px; padding: 20px; }
+    .score-info { text-align: center; }
+    .stat-row { justify-content: center; }
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .tb-left { justify-content: space-between; }
+    .btn-review { justify-content: center; }
+    .kbd-hint { display: none; }
+    .complexity-grid { grid-template-columns: 1fr; }
+    .gutter { min-width: 40px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 14px; border-radius: 20px;
+    background: var(--accent-dim); border: 1px solid var(--accent-border);
+    font-size: 12px; font-weight: 600; color: var(--accent);
+    margin-bottom: 16px; letter-spacing: 0.3px;
+  }
+  .feat-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
+  .feat-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 13px; border-radius: 20px;
+    background: var(--card); border: 1px solid var(--border);
+    font-size: 11.5px; font-weight: 500; color: var(--fg-secondary);
+    transition: all 0.2s; cursor: default;
+  }
+  .feat-chip:hover { border-color: var(--accent-border); color: var(--accent); background: var(--accent-dim); }
+  .feat-chip i { font-size: 10px; }
+  .resize-handle {
+    height: 10px; cursor: ns-resize;
+    background: var(--bg-elevated); border-top: 1px solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s; user-select: none; flex-shrink: 0;
+  }
+  .resize-handle:hover, .resize-handle:active { background: var(--card-hover); }
+  .resize-grip { width: 32px; height: 3px; border-radius: 2px; background: var(--border-active); }
+  .drag-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(8,9,10,0.9); backdrop-filter: blur(12px);
+    display: none; align-items: center; justify-content: center;
+  }
+  .drag-overlay.show { display: flex; }
+  .drag-inner {
+    text-align: center; padding: 56px 72px;
+    border: 2px dashed var(--accent); border-radius: var(--radius);
+    background: var(--accent-dim); animation: dragPop 0.2s cubic-bezier(0.16,1,0.3,1);
+  }
+  .drag-inner i { font-size: 52px; color: var(--accent); display: block; margin-bottom: 18px; }
+  .drag-inner p { font-size: 18px; font-weight: 700; color: var(--fg); margin-bottom: 8px; }
+  .drag-inner span { font-size: 12px; color: var(--fg-secondary); font-family: var(--mono); }
+  @keyframes dragPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .ea-btn { position: relative; }
+  .ea-btn::after {
+    content: attr(title); position: absolute; bottom: -26px; left: 50%;
+    transform: translateX(-50%); font-size: 10px; font-family: var(--sans);
+    color: var(--fg-secondary); background: var(--card-raised);
+    border: 1px solid var(--border); padding: 2px 7px; border-radius: 4px;
+    white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity 0.15s; z-index: 20;
+  }
+  .ea-btn:hover::after { opacity: 1; }
+  .footer-sep { margin: 0 10px; color: var(--border-active); }
+
+  /* ── Animated editor glow ── */
+  .editor-wrap {
+    box-shadow:
+      0 0 0 1px rgba(129,140,248,0.18),
+      0 0 40px rgba(129,140,248,0.07),
+      0 24px 80px rgba(0,0,0,0.5);
+    animation: editorPulse 5s ease-in-out infinite;
+    transition: box-shadow 0.4s;
+  }
+  @keyframes editorPulse {
+    0%,100% { box-shadow: 0 0 0 1px rgba(129,140,248,0.18), 0 0 40px rgba(129,140,248,0.07), 0 24px 80px rgba(0,0,0,0.5); }
+    50%      { box-shadow: 0 0 0 1px rgba(129,140,248,0.38), 0 0 70px rgba(129,140,248,0.16), 0 24px 80px rgba(0,0,0,0.5); }
+  }
+  .editor-wrap:focus-within {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(129,140,248,0.55), 0 0 80px rgba(129,140,248,0.2), 0 24px 80px rgba(0,0,0,0.5);
+  }
+
+  /* ── Button pulse ── */
+  @keyframes btnPulse {
+    0%,100% { box-shadow: 0 2px 18px rgba(129,140,248,0.22); }
+    50%      { box-shadow: 0 4px 36px rgba(129,140,248,0.55), 0 0 60px rgba(109,40,217,0.25); }
+  }
+  .btn-review:not(:disabled) { animation: btnPulse 3.5s ease-in-out infinite; }
+  .btn-review:not(:disabled):hover { animation: none; box-shadow: 0 6px 40px rgba(129,140,248,0.65), 0 0 80px rgba(109,40,217,0.3); }
+
+  /* ── Hero scan beam ── */
+  .hero { position: relative; overflow: hidden; }
+  /* .hero-beam {
+    position: absolute; left: -20%; right: -20%; height: 120px;
+    background: linear-gradient(180deg, transparent 0%, rgba(129,140,248,0.04) 40%, rgba(129,140,248,0.08) 50%, rgba(129,140,248,0.04) 60%, transparent 100%);
+    pointer-events: none; animation: beamSweep 7s ease-in-out infinite;
+  } */
+  @keyframes beamSweep {
+    0%   { top: -120px; opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 110%; opacity: 0; }
+  }
+
+  /* ── Floating code bg elements ── */
+  .hero-code-bg {
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0;
+  }
+  .hero-code-bg span {
+    position: absolute; font-family: var(--mono); font-size: 11px;
+    color: rgba(129,140,248,0.12); white-space: nowrap; user-select: none;
+    animation: floatUp linear infinite;
+  }
+  @keyframes floatUp {
+    0%   { transform: translateY(100%); opacity: 0; }
+    5%   { opacity: 1; }
+    95%  { opacity: 1; }
+    100% { transform: translateY(-100%); opacity: 0; }
+  }
+  .hero > * { position: relative; z-index: 1; }
+
+  /* ── Card depth ── */
+  .section-card {
+    box-shadow: 0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(129,140,248,0.06);
+  }
+  .score-panel {
+    box-shadow: 0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(129,140,248,0.06);
+  }
+
+  /* ── Issue cards ── */
+  .issue { transition: all 0.25s; }
+  .issue:hover {
+    transform: translateX(3px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  /* ── Editor bar shimmer ── */
+  .editor-bar { position: relative; overflow: hidden; }
+  .editor-bar::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -200%;
+    width: 60%; background: linear-gradient(90deg, transparent, rgba(129,140,248,0.04), transparent);
+    animation: editorBarShimmer 6s ease-in-out infinite;
+  }
+  @keyframes editorBarShimmer {
+    0%   { left: -200%; }
+    100% { left: 200%; }
+  }
+
+  /* ── Caret color ── */
+  #codeInput { caret-color: #a5b4fc; }
+
+  /* ── Typing cursor in empty editor ── */
+  .editor-placeholder-cursor {
+    position: absolute; left: calc(20px + 8ch); top: 16px;
+    width: 2px; height: calc(12.5px * 1.75);
+    background: #818cf8; border-radius: 1px;
+    animation: blinkCursor 1.1s step-end infinite;
+    pointer-events: none; z-index: 3;
+    display: none;
+  }
+  .editor-placeholder-cursor.show { display: block; }
+  @keyframes blinkCursor { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* ── Results separator glow ── */
+  .results-sep {
+    background: linear-gradient(90deg, transparent, rgba(129,140,248,0.5) 30%, rgba(129,140,248,0.5) 70%, transparent);
+  }
+
+  /* ── Ring glow filter ── */
+  .ring-fg { filter: drop-shadow(0 0 8px rgba(129,140,248,0.6)); }
+
+  /* ── Empty box improved ── */
+  .empty-box i { opacity: 0.15; }
+
+  /* ── Keyboard shortcut hint improve ── */
+  .kbd { background: rgba(129,140,248,0.08); border-color: rgba(129,140,248,0.2); color: #a5b4fc; }
+
+  /* ── Hero stat strip ── */
+  .hero-stats {
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    margin-top: 28px; padding: 14px 28px;
+    background: rgba(129,140,248,0.04); border: 1px solid rgba(129,140,248,0.1);
+    border-radius: var(--radius); width: fit-content; margin-left: auto; margin-right: auto;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat-num { font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: -0.5px; display: block; }
+  .hero-stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; display: block; margin-top: 1px; }
+  .hero-stat-sep { width: 1px; height: 32px; background: var(--border); }
+
+  /* ── Logo pulse ── */
+  .logo-mark { animation: logoPulse 4s ease-in-out infinite; }
+  @keyframes logoPulse {
+    0%,100% { box-shadow: 0 0 24px rgba(129,140,248,0.3); }
+    50%      { box-shadow: 0 0 40px rgba(129,140,248,0.6), 0 0 80px rgba(109,40,217,0.2); }
+  }
+
+  /* ── Section icon pulse ── */
+  .section-ico { animation: icoPulse 3s ease-in-out infinite; }
+  @keyframes icoPulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.75; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+<div class="noise"></div>
+<div class="grid-bg"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+<div class="drag-overlay" id="dragOverlay"><div class="drag-inner"><i class="fas fa-file-code"></i><p>Drop your code file</p><span>Supports .js .ts .py .java .cpp .go .rs and more</span></div></div>
+
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-mark"><i class="fas fa-bolt"></i></div>
+      <div class="logo-name">Code<b>Lens</b></div>
+    </div>
+    <div class="header-right">
+      <div class="kbd-hint"><span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> to review</div>
+      <div class="status-pill"><span class="status-dot"></span>Model Online</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-code-bg" id="heroCodeBg"></div>
+      <div class="hero-badge"><i class="fas fa-wand-magic-sparkles"></i>&ensp;AI-Powered Code Review</div>
+      <h1>Instant <span class="grad">AI Code Review</span></h1>
+      <p>Paste your code and get actionable feedback on bugs, security, performance, and best practices.</p>
+      <div class="feat-chips">
+        <span class="feat-chip"><i class="fas fa-bug"></i> Bug Detection</span>
+        <span class="feat-chip"><i class="fas fa-shield-halved"></i> Security Scan</span>
+        <span class="feat-chip"><i class="fas fa-bolt-lightning"></i> Performance</span>
+        <span class="feat-chip"><i class="fas fa-gauge-high"></i> Complexity</span>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-num">12+</span>
+          <span class="hero-stat-lbl">Languages</span>
+        </div>
+        <div class="hero-stat-sep"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-num">5s</span>
+          <span class="hero-stat-lbl">Avg Review</span>
+        </div>
+        <div class="hero-stat-sep"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-num">AI</span>
+          <span class="hero-stat-lbl">Powered</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="editor-wrap">
+      <div class="editor-bar">
+        <div class="editor-bar-left">
+          <div class="editor-dot r"></div>
+          <div class="editor-dot y"></div>
+          <div class="editor-dot g"></div>
+          <span class="editor-filename" id="editorFilename">untitled</span>
+          <span class="editor-lang-badge" id="editorLangBadge">JS</span>
+        </div>
+        <div class="editor-actions">
+          <button class="ea-btn" title="Paste" onclick="pasteCode()"><i class="fas fa-paste"></i></button>
+          <button class="ea-btn" title="Clear" onclick="clearCode()"><i class="fas fa-xmark"></i></button>
+          <button class="ea-btn" title="Sample" onclick="loadSample()"><i class="fas fa-flask"></i></button>
+        </div>
+      </div>
+      <div class="editor-body">
+        <div class="gutter" id="gutter"><div>1</div></div>
+        <div class="editor-code-area">
+          <div class="active-line-bg" id="activeLineBg"></div>
+          <div class="editor-placeholder-cursor" id="placeholderCursor"></div>
+          <pre class="highlight-pre" id="highlightPre" aria-hidden="true"></pre>
+          <textarea id="codeInput" placeholder="// Paste your code here..." spellcheck="false" aria-label="Code editor"></textarea>
+        </div>
+      </div>
+      <div class="resize-handle" id="resizeHandle"><div class="resize-grip"></div></div>
+    </section>
+
+    <div class="toolbar">
+      <div class="tb-left">
+        <select class="lang-sel" id="langSel" aria-label="Language">
+          <option value="auto">Auto Detect</option>
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="typescript">TypeScript</option>
+          <option value="java">Java</option>
+          <option value="c">C</option>
+          <option value="cpp">C++</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="php">PHP</option>
+          <option value="ruby">Ruby</option>
+          <option value="swift">Swift</option>
+        </select>
+        <span class="char-info" id="charInfo">0 chars</span>
+      </div>
+      <button class="btn-review" id="reviewBtn" onclick="reviewCode()">
+        <div class="spin-sm"></div>
+        <i class="fas fa-wand-magic-sparkles btn-ico"></i>
+        <span>Review Code</span>
+      </button>
+    </div>
+
+    <div class="results-sep" id="resultsSep"></div>
+    <div id="resultsArea"></div>
+  </main>
+
+  <footer><span>CodeLens &mdash; AI-powered code review</span><span class="footer-sep">&middot;</span><span>Paste code &rarr; Get insights &rarr; Ship better</span></footer>
+</div>
+
+<script>
+
+  /* === Floating code bg === */
+  (function() {
+    const bg = document.getElementById('heroCodeBg');
+    if (!bg) return;
+    const snippets = [
+      'const review = await ai.analyze(code);',
+      'function detectBugs(ast) { ... }',
+      'security.scan(dependencies)',
+      'O(n log n) → O(n)',
+      'async function optimize() {',
+      'import { CodeLens } from "./ai"',
+      'if (vulnerability.critical) fix();',
+      'return complexity.score;',
+      'export default CodeReviewer',
+      'throw new SecurityError()',
+    ];
+    snippets.forEach((text, i) => {
+      const el = document.createElement('span');
+      el.textContent = text;
+      el.style.left = (5 + Math.random() * 80) + '%';
+      el.style.animationDuration = (12 + Math.random() * 16) + 's';
+      el.style.animationDelay = (i * -3.5) + 's';
+      bg.appendChild(el);
+    });
+  })();
+
+  /* === Placeholder cursor === */
+  const placeholderCursor = document.getElementById('placeholderCursor');
+  function updateCursorVis() {
+    if (placeholderCursor) {
+      placeholderCursor.classList.toggle('show', codeInput.value.trim() === '');
+    }
+  }
+
+    /* === DOM refs === */
+  const codeInput = document.getElementById('codeInput');
+  const gutter = document.getElementById('gutter');
+  const charInfo = document.getElementById('charInfo');
+  const reviewBtn = document.getElementById('reviewBtn');
+  const resultsArea = document.getElementById('resultsArea');
+  const langSel = document.getElementById('langSel');
+  const highlightPre = document.getElementById('highlightPre');
+  const activeLineBg = document.getElementById('activeLineBg');
+  const editorLangBadge = document.getElementById('editorLangBadge');
+  const resultsSep = document.getElementById('resultsSep');
+
+  let reviewStartTime = 0;
+  let detectedLang = 'javascript';
+
+  /* === Syntax Highlighting Engine === */
+  const KW = {
+    javascript: new Set(['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','this','class','extends','super','import','export','from','default','try','catch','finally','throw','async','await','yield','of','in','typeof','instanceof','void','delete','with','debugger','static','get','set']),
+    python: new Set(['def','class','return','if','elif','else','for','while','break','continue','import','from','as','try','except','finally','raise','with','yield','lambda','pass','del','global','nonlocal','assert','async','await','in','not','and','or','is']),
+    typescript: new Set(['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','this','class','extends','super','import','export','from','default','try','catch','finally','throw','async','await','yield','of','in','typeof','instanceof','void','delete','interface','type','enum','namespace','declare','abstract','implements','readonly','keyof','infer','extends','as','is','asserts']),
+    java: new Set(['public','private','protected','static','final','abstract','class','interface','extends','implements','new','return','if','else','for','while','do','switch','case','break','continue','try','catch','finally','throw','throws','import','package','void','int','long','double','float','boolean','char','byte','short','this','super','null','true','false','instanceof','synchronized','volatile','transient','native','enum','assert','default','sealed','permits','record']),
+    cpp: new Set(['auto','break','case','catch','class','const','constexpr','continue','default','delete','do','double','dynamic_cast','else','enum','explicit','export','extern','false','final','float','for','friend','goto','if','inline','int','long','mutable','namespace','new','noexcept','nullptr','operator','private','protected','public','register','reinterpret_cast','return','short','signed','sizeof','static','static_assert','static_cast','struct','switch','template','this','thread_local','throw','true','try','typedef','typeid','typename','union','unsigned','using','virtual','void','volatile','while','override','final','constexpr','nullptr','char','bool','string','include','define','ifdef','ifndef','endif','pragma']),
+    go: new Set(['break','case','chan','const','continue','default','defer','else','fallthrough','for','func','go','goto','if','import','interface','map','package','range','return','select','struct','switch','type','var','true','false','nil','make','new','append','len','cap','copy','delete','close','panic','recover','print','println','fmt','err']),
+    rust: new Set(['as','break','const','continue','crate','else','enum','extern','fn','for','if','impl','in','let','loop','match','mod','move','mut','pub','ref','return','self','Self','static','struct','super','trait','true','false','type','unsafe','use','where','while','async','await','dyn','box','impl','macro_rules']),
+    php: new Set(['abstract','and','array','as','break','callable','case','catch','class','clone','const','continue','declare','default','die','do','echo','else','elseif','empty','enddeclare','endfor','endforeach','endif','endswitch','endwhile','eval','exit','extends','final','finally','fn','for','foreach','function','global','goto','if','implements','include','include_once','instanceof','interface','isset','list','match','namespace','new','or','print','private','protected','public','require','require_once','return','static','switch','throw','trait','try','unset','use','var','while','xor','yield','yield from','true','false','null']),
+    ruby: new Set(['alias','and','begin','break','case','class','def','defined','do','else','elsif','end','ensure','false','for','if','in','module','next','nil','not','or','redo','rescue','retry','return','self','super','then','true','undef','unless','until','when','while','yield','require','include','extend','attr_reader','attr_writer','attr_accessor','raise','puts','print','p','lambda','proc']),
+    swift: new Set(['associatedtype','class','deinit','enum','extension','fileprivate','func','import','init','inout','internal','let','open','operator','private','protocol','public','rethrows','static','struct','subscript','typealias','var','break','case','catch','continue','default','defer','do','else','fallthrough','for','guard','if','in','repeat','return','throw','switch','where','while','as','is','nil','true','false','self','Self','super','Type','Optional','Some','None','throws','try','async','await']),
+  };
+
+  const BUILTIN = {
+    javascript: new Set(['console','document','window','Math','Array','Object','String','Number','Boolean','Date','RegExp','Error','Promise','Map','Set','JSON','parseInt','parseFloat','isNaN','isFinite','setTimeout','setInterval','clearTimeout','clearInterval','fetch','Response','Request','Headers','URL','URLSearchParams','Symbol','Proxy','Reflect','WeakMap','WeakSet','ArrayBuffer','DataView','Float32Array','Float64Array','Int8Array','Int16Array','Int32Array','Uint8Array','Uint16Array','Uint32Array','process','require','module','exports','Buffer','__dirname','__filename','alert','confirm','prompt','localStorage','sessionStorage','navigator','location','history','screen','XMLHttpRequest','WebSocket','Event','CustomEvent','AbortController','AbortSignal','FormData','Blob','File','FileReader','atob','btoa','crypto','performance','queueMicrotask','structuredClone']),
+    python: new Set(['print','len','range','int','str','float','list','dict','set','tuple','bool','type','isinstance','issubclass','input','open','file','abs','all','any','bin','chr','dir','divmod','enumerate','eval','exec','filter','format','frozenset','getattr','globals','hasattr','hash','help','hex','id','iter','map','max','min','next','oct','ord','pow','property','repr','reversed','round','sorted','sum','super','vars','zip','classmethod','staticmethod','compile','complex','delattr','bytearray','bytes','callable','memoryview','object','slice','Exception','ValueError','TypeError','KeyError','IndexError','AttributeError','RuntimeError','StopIteration','NotImplementedError','IOError','OSError','ImportError','NameError','ZeroDivisionError','self','cls','True','False','None']),
+    typescript: new Set(['console','document','window','Math','Array','Object','String','Number','Boolean','Date','RegExp','Error','Promise','Map','Set','JSON','parseInt','parseFloat','isNaN','isFinite','setTimeout','setInterval','clearTimeout','clearInterval','fetch','Response','Request','Headers','URL','URLSearchParams','Symbol','Proxy','Reflect','WeakMap','WeakSet','ArrayBuffer','DataView','Float32Array','Float64Array','Int8Array','Int16Array','Int32Array','Uint8Array','Uint16Array','Uint32Array','process','require','module','exports','Buffer','Record','Partial','Required','Readonly','Pick','Omit','Exclude','Extract','NonNullable','ReturnType','InstanceType','Parameters','ConstructorParameters','Uppercase','Lowercase','Capitalize','Uncapitalize','any','never','unknown','void','undefined','null','true','false']),
+    java: new Set(['System','String','Integer','Long','Double','Float','Boolean','Character','Byte','Short','Math','Arrays','Collections','List','ArrayList','LinkedList','HashMap','HashSet','TreeMap','TreeSet','LinkedHashMap','LinkedHashSet','Queue','Deque','PriorityQueue','Stack','Vector','Hashtable','Properties','Iterator','Iterable','Comparator','Comparable','Optional','Stream','Collectors','Objects','Thread','Runnable','Exception','RuntimeException','IllegalArgumentException','IllegalStateException','NullPointerException','IndexOutOfBoundsException','ClassCastException','UnsupportedOperationException','StringBuilder','StringBuffer','Matcher','Pattern','Scanner','File','FileInputStream','FileOutputStream','BufferedReader','BufferedWriter','PrintWriter','InputStreamReader','OutputStreamWriter','ObjectOutputStream','ObjectInputStream','Serializable','Cloneable','Comparable','Override','Deprecated','SuppressWarnings','FunctionalInterface']),
+    cpp: new Set(['std','cout','cin','endl','cerr','clog','vector','string','map','set','unordered_map','unordered_set','pair','tuple','array','deque','list','forward_list','stack','queue','priority_queue','bitset','unique_ptr','shared_ptr','weak_ptr','make_shared','make_unique','move','forward','size_t','uint8_t','uint16_t','uint32_t','uint64_t','int8_t','int16_t','int32_t','int64_t','ostream','istream','ofstream','ifstream','stringstream','ostringstream','istringstream','exception','runtime_error','logic_error','invalid_argument','out_of_range','length_error','bad_alloc','numeric_limits','sort','find','lower_bound','upper_bound','binary_search','next_permutation','min','max','swap','reverse','fill','count','accumulate','transform','copy','remove','unique','merge','push_back','push_front','pop_back','pop_front','emplace_back','begin','end','size','empty','clear','resize','reserve','capacity','insert','erase','find','at','front','back','data','printf','scanf','fprintf','sprintf','sscanf','malloc','free','calloc','realloc','memcpy','memset','strlen','strcmp','strcpy','strcat','atoi','atof','abs','sqrt','pow','sin','cos','tan','log','exp','ceil','floor','round','rand','srand','NULL','EXIT_SUCCESS','EXIT_FAILURE','EOF']),
+    go: new Set(['fmt','Println','Printf','Sprintf','Fprintf','Scanf','Scanln','os','File','Open','Create','ReadFile','WriteFile','MkdirAll','Remove','Rename','Getwd','Args','Stdin','Stdout','Stderr','Exit','io','Reader','Writer','ReadFull','Copy','ioutil','ReadAll','WriteFile','ReadFile','strings','Contains','HasPrefix','HasSuffix','Split','Join','Replace','ToLower','ToUpper','TrimSpace','strconv','Itoa','Atoi','ParseInt','ParseFloat','FormatInt','FormatFloat','net','http','Get','Post','HandleFunc','ListenAndServe','Handler','ResponseWriter','Request','time','Now','Sleep','Duration','Since','Until','Parse','Format','context','Background','TODO','WithCancel','WithTimeout','sync','Mutex','RWMutex','WaitGroup','Once','atomic','AddInt64','LoadInt64','StoreInt64','errors','New','Wrap','Unwrap','log','Fatal','Fatalf','Panic','Panicf','Println','Printf','math','Sqrt','Abs','Max','Min','Pow','Sin','Cos','sort','Ints','Strings','SearchInts','bytes','Buffer','encoding','json','Marshal','Unmarshal','xml','database','sql','reflect','filepath','path']),
+    rust: new Set(['Vec','String','Option','Some','None','Result','Ok','Err','Box','Rc','Arc','Mutex','RwLock','HashMap','HashSet','BTreeMap','BTreeSet','BinaryHeap','VecDeque','LinkedList','format','println','print','eprintln','eprint','panic','assert','assert_eq','assert_ne','dbg','todo','unimplemented','unreachable','clone','Copy','Debug','Display','Default','From','Into','TryFrom','TryInto','FromStr','AsRef','AsMut','Borrow','BorrowMut','ToOwned','Deref','DerefMut','Drop','Iterator','IntoIterator','Extend','FromIterator','Read','Write','Seek','BufRead','BufReader','BufWriter','File','OpenOptions','fs','io','std','println','vec','String','format','Box','Rc','Arc','Mutex','thread','spawn','sleep','Duration','instant','Instant','SystemTime','UNIX_EPOCH','env','args','current_dir','set_current_dir','var','remove_var','path','Path','PathBuf','collections','HashMap','HashSet','time','Duration','SystemTime','error','Error']),
+    php: new Set(['echo','print','isset','unset','empty','array','count','strlen','substr','strpos','str_replace','explode','implode','trim','strtolower','strtoupper','ucfirst','lcfirst','ucwords','nl2br','htmlentities','htmlspecialchars','json_encode','json_decode','var_dump','print_r','die','exit','header','session_start','session_destroy','$_GET','$_POST','$_REQUEST','$_SESSION','$_SERVER','$_FILES','$_COOKIE','$_ENV','array_map','array_filter','array_merge','array_keys','array_values','array_push','array_pop','array_shift','array_unshift','in_array','sort','usort','ksort','array_key_exists','file_get_contents','file_put_contents','fopen','fread','fwrite','fclose','preg_match','preg_replace','preg_split','date','time','strtotime','mktime','checkdate','define','defined','class_exists','method_exists','property_exists','get_class','get_parent_class','is_a','is_null','is_array','is_object','is_string','is_int','is_integer','is_numeric','is_bool','call_user_func','call_user_func_array','func_get_args','func_num_args','Exception','ErrorException','Throwable','Error','TypeError','ArgumentCountError','ArithmeticError','DivisionByZeroError','ParseError','mysqli','PDO','PDOStatement','DateTime','DateTimeImmutable','DateInterval','DatePeriod','SplFixedArray','SplStack','SplQueue','SplHeap','SplMaxHeap','SplMinHeap','DirectoryIterator','FilesystemIterator','GlobIterator','RegexIterator','SimpleXMLElement','DOMNode','DOMDocument','DOMElement','curl_init','curl_exec','curl_close','curl_setopt','filter_var','FILTER_VALIDATE_EMAIL','FILTER_SANITIZE_STRING']),
+    ruby: new Set(['puts','print','p','gets','chomp','to_s','to_i','to_f','to_a','to_h','length','size','count','each','map','select','reject','detect','find','find_all','grep','inject','reduce','sort','sort_by','reverse','flatten','compact','uniq','zip','chunk','first','last','take','drop','min','max','sum','minmax','sample','shuffle','cycle','entries','to_enum','nil','true','false','self','raise','require','require_relative','include','extend','attr_reader','attr_writer','attr_accessor','define_method','lambda','proc','class_eval','instance_eval','send','respond_to','is_a','kind_of','nil','freeze','frozen','dup','clone','object_id','equal','hash','inspect','to_s','display','Array','Hash','Set','String','Integer','Float','Numeric','Range','Regexp','Symbol','Proc','Lambda','Method','UnboundMethod','Class','Module','Object','BasicObject','Exception','RuntimeError','StandardError','ArgumentError','TypeError','NameError','NoMethodError','IndexError','KeyError','StopIteration','IO','File','Dir','FileUtils','Pathname','Time','DateTime','Date','OpenStruct','Struct','Enumerator','Enumerable','Comparable','Kernel']),
+    swift: new Set(['print','dump','debugPrint','readLine','assert','assertionFailure','precondition','preconditionFailure','fatalError','Array','Dictionary','Set','String','Character','Int','UInt','Float','Double','Bool','Optional','nil','true','false','self','Self','type','Type','Any','AnyObject','Never','Result','success','failure','Range','ClosedRange','PartialRangeFrom','PartialRangeThrough','PartialRangeUpTo','stride','zip','map','flatMap','filter','reduce','forEach','contains','firstIndex','lastIndex','indices','sorted','reversed','shuffled','min','max','count','isEmpty','append','insert','remove','pop','dropFirst','dropLast','prefix','suffix','split','joined','trimmingCharacters','components','replacingOccurrences','lowercased','uppercased','capitalized','hasPrefix','hasSuffix','absoluteString','URL','Date','DateFormatter','Calendar','Locale','TimeZone','UUID','Data','JSONDecoder','JSONEncoder','Codable','Decodable','Encodable','CodingKey','CustomStringConvertible','CustomDebugStringConvertible','Equatable','Comparable','Hashable','Identifiable','CaseIterable','Sequence','Collection','MutableCollection','RangeReplaceableCollection','BidirectionalCollection','RandomAccessCollection','LazySequence','LazyFilterSequence','Error','LocalizedError']),
+  };
+
+  /* Detect language from code */
+  function detectLanguage(code) {
+    if (langSel.value !== "auto") {
+      return langSel.value;
+    }
+
+    const lower = code.toLowerCase();
+
+    const scores = {
+      c: 0,
+      cpp: 0,
+      python: 0,
+      java: 0,
+      javascript: 0,
+      typescript: 0,
+      go: 0,
+      rust: 0,
+      php: 0,
+      ruby: 0,
+      swift: 0
+    };
+
+    // ---------------- C ----------------
+    if (lower.includes("#include <stdio.h>")) scores.c += 8;
+    if (lower.includes("printf(")) scores.c += 5;
+    if (lower.includes("scanf(")) scores.c += 5;
+    if (lower.includes("malloc(")) scores.c += 4;
+    if (lower.includes("free(")) scores.c += 3;
+
+    // Generic C patterns
+    if (/\bint\s+main\s*\(/.test(lower)) scores.c += 3;
+    if (/\bchar\s+\w+/.test(lower)) scores.c += 1;
+    if (/\bstruct\s+\w+/.test(lower)) scores.c += 2;
+
+
+    // ---------------- C++ ----------------
+    if (lower.includes("#include <iostream>")) scores.cpp += 8;
+    if (lower.includes("using namespace std")) scores.cpp += 6;
+    if (lower.includes("cout <<")) scores.cpp += 6;
+    if (lower.includes("cin >>")) scores.cpp += 6;
+    if (lower.includes("vector<")) scores.cpp += 5;
+    if (lower.includes("class solution")) scores.cpp += 4;
+    if (lower.includes("std::")) scores.cpp += 4;
+
+    // Generic competitive programming patterns
+    if (/\bbool\s+\w+\s*\(/.test(lower)) scores.cpp += 4;
+    if (/\bint\s+\w+\s*\(/.test(lower)) scores.cpp += 2;
+    if (/\bfor\s*\(int\s+\w+/.test(lower)) scores.cpp += 4;
+    if (/\breturn\s+(true|false)\s*;/.test(lower)) scores.cpp += 2;
+    if (/\bvector\s*</.test(lower)) scores.cpp += 4;
+    if (/\bstring\s+\w+/.test(lower)) scores.cpp += 2;
+
+    // ---------------- Python ----------------
+    if (lower.includes("def ")) scores.python += 4;
+    if (lower.includes("print(")) scores.python += 2;
+    if (lower.includes("import ")) scores.python += 2;
+    if (lower.includes("elif ")) scores.python += 2;
+    if (lower.includes("if __name__ ==")) scores.python += 5;
+    if (lower.includes("self")) scores.python += 1;
+
+    // ---------------- Java ----------------
+    if (lower.includes("public class")) scores.java += 5;
+    if (lower.includes("system.out.println")) scores.java += 5;
+    if (lower.includes("public static void main")) scores.java += 5;
+    if (lower.includes("import java")) scores.java += 3;
+
+    // ---------------- JavaScript ----------------
+    if (lower.includes("console.log(")) scores.javascript += 4;
+    if (lower.includes("function ")) scores.javascript += 3;
+    if (lower.includes("=>")) scores.javascript += 2;
+    if (lower.includes("const ")) scores.javascript += 2;
+    if (lower.includes("let ")) scores.javascript += 2;
+    if (lower.includes("document.getelementbyid")) scores.javascript += 4;
+
+    // ---------------- TypeScript ----------------
+    if (lower.includes("interface ")) scores.typescript += 5;
+    if (lower.includes(": string")) scores.typescript += 4;
+    if (lower.includes(": number")) scores.typescript += 4;
+    if (lower.includes("type ")) scores.typescript += 3;
+    if (lower.includes("readonly")) scores.typescript += 2;
+
+    // ---------------- Go ----------------
+    if (lower.includes("package main")) scores.go += 5;
+    if (lower.includes("fmt.println")) scores.go += 5;
+    if (lower.includes("func main")) scores.go += 4;
+    if (lower.includes(":= ")) scores.go += 2;
+
+    // ---------------- Rust ----------------
+    if (lower.includes("fn main")) scores.rust += 5;
+    if (lower.includes("println!")) scores.rust += 5;
+    if (lower.includes("let mut")) scores.rust += 3;
+    if (lower.includes("::")) scores.rust += 1;
+
+    // ---------------- PHP ----------------
+    if (lower.includes("<?php")) scores.php += 6;
+    if (lower.includes("$")) scores.php += 2;
+    if (lower.includes("echo ")) scores.php += 2;
+    if (lower.includes("->")) scores.php += 2;
+
+    // ---------------- Ruby ----------------
+    if (lower.includes("puts ")) scores.ruby += 4;
+    if (lower.includes("end")) scores.ruby += 2;
+    if (lower.includes("def ")) scores.ruby += 2;
+    if (lower.includes("require ")) scores.ruby += 3;
+
+    // ---------------- Swift ----------------
+    if (lower.includes("import uikit")) scores.swift += 5;
+    if (lower.includes("func ")) scores.swift += 3;
+    if (lower.includes("guard let")) scores.swift += 4;
+    if (lower.includes("var ")) scores.swift += 1;
+    if (lower.includes("let ")) scores.swift += 1;
+
+    // Find highest score
+    let bestLang = "plaintext";
+    let highest = 0;
+
+    for (const lang in scores) {
+      if (scores[lang] > highest) {
+        highest = scores[lang];
+        bestLang = lang;
+      }
+    }
+
+    return bestLang;
+}
+
+  /* Tokenize — produces HTML spans */
+  function tokenize(code, lang) {
+    const kws = KW[lang] || KW.javascript;
+    const builtins = BUILTIN[lang] || BUILTIN.javascript;
+    const isPy = lang === 'python';
+    const isCpp = lang === 'cpp';
+    const isGo = lang === 'go';
+    const isRust = lang === 'rust';
+    const isPhp = lang === 'php';
+    const isRuby = lang === 'ruby';
+    const isSwift = lang === 'swift';
+
+    let result = '';
+    let i = 0;
+    const len = code.length;
+
+    function escCh(c) {
+      if (c === '&') return '&amp;';
+      if (c === '<') return '&lt;';
+      if (c === '>') return '&gt;';
+      if (c === '"') return '&quot;';
+      return c;
+    }
+    function escStr(s) {
+      let r = '';
+      for (let j = 0; j < s.length; j++) r += escCh(s[j]);
+      return r;
+    }
+    function peek(offset) { return i + offset < len ? code[i + offset] : ''; }
+    function at(offset) { return i + offset < len ? code.charCodeAt(i + offset) : 0; }
+    function isWord(c) { return /[a-zA-Z_]/.test(c); }
+    function isWordOrNum(c) { return /[a-zA-Z0-9_]/.test(c); }
+    function isDigit(c) { return /[0-9]/.test(c); }
+
+    while (i < len) {
+      const c = code[i];
+
+      /* Preprocessor # for C/C++ */
+      if (isCpp && c === '#' && (i === 0 || code[i-1] === '\n')) {
+        let end = i + 1;
+        while (end < len && code[end] !== '\n') end++;
+        result += `<span class="tok-preproc">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* Python/ruby comments */
+      if ((isPy || isRuby) && c === '#') {
+        let end = i + 1;
+        while (end < len && code[end] !== '\n') end++;
+        result += `<span class="tok-comment">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* JS/TS/C++/Java/Go/Rust/PHP/Swift line comments */
+      if (!isPy && !isRuby && c === '/' && peek(1) === '/') {
+        let end = i + 2;
+        while (end < len && code[end] !== '\n') end++;
+        result += `<span class="tok-comment">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* Block comments */
+      if (!isPy && !isRuby && c === '/' && peek(1) === '*') {
+        let end = code.indexOf('*/', i + 2);
+        end = end === -1 ? len : end + 2;
+        result += `<span class="tok-comment">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* PHP tags */
+      if (isPhp && c === '<' && peek(1) === '?') {
+        let end = i + 2;
+        if (peek(2) === 'p' && peek(3) === 'h' && peek(4) === 'p') end = i + 5;
+        else end = i + 2;
+        result += `<span class="tok-preproc">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* Strings — double quote */
+      if (c === '"') {
+        let j = i + 1;
+        while (j < len && code[j] !== '"') { if (code[j] === '\\') j++; j++; }
+        j = Math.min(j + 1, len);
+        result += `<span class="tok-string">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* Strings — single quote */
+      if (c === "'") {
+        let j = i + 1;
+        while (j < len && code[j] !== "'" && code[j] !== '\n') { if (code[j] === '\\') j++; j++; }
+        j = Math.min(j + 1, len);
+        result += `<span class="tok-string">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* Python triple-quoted strings */
+      if (isPy && (code.substring(i, i+3) === '"""' || code.substring(i, i+3) === "'''")) {
+        const q = code.substring(i, i+3);
+        let end = code.indexOf(q, i + 3);
+        end = end === -1 ? len : end + 3;
+        result += `<span class="tok-string">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* Go/Rust raw strings */
+      if ((isGo || isRust) && c === '`') {
+        let end = code.indexOf('`', i + 1);
+        end = end === -1 ? len : end + 1;
+        result += `<span class="tok-string">${escStr(code.substring(i, end))}</span>`;
+        i = end; continue;
+      }
+
+      /* Template literals (JS/TS) */
+      if ((lang === 'javascript' || lang === 'typescript') && c === '`') {
+        let j = i + 1;
+        let s = '<span class="tok-string">`';
+        while (j < len && code[j] !== '`') {
+          if (code[j] === '\\') { s += escCh(code[j]) + escCh(code[j+1]||''); j += 2; continue; }
+          if (code[j] === '$' && code[j+1] === '{') {
+            s += '</span><span class="tok-punct">${</span>';
+            j += 2;
+            let depth = 1;
+            let inner = '';
+            while (j < len && depth > 0) {
+              if (code[j] === '{') depth++;
+              if (code[j] === '}') { depth--; if (depth === 0) break; }
+              inner += code[j]; j++;
+            }
+            /* Re-tokenize the inner expression simply */
+            s += tokenize(inner, lang);
+            s += '<span class="tok-punct">}</span><span class="tok-string">';
+            if (j < len) j++;
+            continue;
+          }
+          s += escCh(code[j]); j++;
+        }
+        s += '`</span>';
+        result += s;
+        i = j + 1; continue;
+      }
+
+      /* Numbers */
+      if (isDigit(c) || (c === '.' && isDigit(peek(1)))) {
+        let j = i;
+        if (c === '0' && (peek(1) === 'x' || peek(1) === 'X')) { j += 2; while (j < len && /[0-9a-fA-F_]/.test(code[j])) j++; }
+        else if (c === '0' && (peek(1) === 'b' || peek(1) === 'B')) { j += 2; while (j < len && /[01_]/.test(code[j])) j++; }
+        else if (c === '0' && (peek(1) === 'o' || peek(1) === 'O')) { j += 2; while (j < len && /[0-7_]/.test(code[j])) j++; }
+        else { while (j < len && /[0-9_]/.test(code[j])) j++; if (j < len && code[j] === '.' && isDigit(peek(1))) { j++; while (j < len && /[0-9_]/.test(code[j])) j++; } if (j < len && (code[j] === 'e' || code[j] === 'E')) { j++; if (j < len && (code[j] === '+' || code[j] === '-')) j++; while (j < len && /[0-9_]/.test(code[j])) j++; } }
+        /* C++ suffixes */
+        if (isCpp) { while (j < len && /[uUlLfF]/.test(code[j])) j++; }
+        /* Rust suffixes */
+        if (isRust) { while (j < len && /[a-zA-Z_]/.test(code[j])) j++; }
+        result += `<span class="tok-number">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* PHP variables */
+      if (isPhp && c === '$' && isWord(peek(1))) {
+        let j = i + 1;
+        while (j < len && isWordOrNum(code[j])) j++;
+        result += `<span class="tok-variable">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* Python/Ruby decorators / annotations */
+      if ((isPy || isRuby) && c === '@' && isWord(peek(1))) {
+        let j = i + 1;
+        while (j < len && isWordOrNum(code[j])) j++;
+        result += `<span class="tok-decorator">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* Swift/Java annotations */
+      if ((isSwift || lang === 'java') && c === '@' && isWord(peek(1))) {
+        let j = i + 1;
+        while (j < len && isWordOrNum(code[j])) j++;
+        result += `<span class="tok-decorator">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* Words */
+      if (isWord(c)) {
+        let j = i;
+        while (j < len && isWordOrNum(code[j])) j++;
+        const word = code.substring(i, j);
+        if (kws.has(word)) {
+          result += `<span class="tok-keyword">${escStr(word)}</span>`;
+        } else if (builtins.has(word)) {
+          /* Check if followed by ( → function call */
+          let k = j;
+          while (k < len && code[k] === ' ') k++;
+          if (k < len && code[k] === '(') {
+            result += `<span class="tok-function">${escStr(word)}</span>`;
+          } else {
+            result += `<span class="tok-builtin">${escStr(word)}</span>`;
+          }
+        } else if ((lang === 'javascript' || lang === 'typescript') && (word === 'true' || word === 'false' || word === 'null' || word === 'undefined' || word === 'NaN' || word === 'Infinity')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (isPy && (word === 'True' || word === 'False' || word === 'None')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (isCpp && (word === 'true' || word === 'false' || word === 'nullptr' || word === 'NULL')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (isGo && (word === 'true' || word === 'false' || word === 'nil' || word === 'iota')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (isRust && (word === 'true' || word === 'false' || word === 'None' || word === 'Some' || word === 'Ok' || word === 'Err')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (isPhp && (word === 'true' || word === 'false' || word === 'null' || word === 'TRUE' || word === 'FALSE' || word === 'NULL')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (isSwift && (word === 'true' || word === 'false' || word === 'nil')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else if (lang === 'java' && (word === 'true' || word === 'false' || word === 'null')) {
+          result += `<span class="tok-constant">${escStr(word)}</span>`;
+        } else {
+          /* Check if it's a type (starts with uppercase, not all caps) */
+          let k = j;
+          while (k < len && code[k] === ' ') k++;
+          if (k < len && code[k] === '(') {
+            result += `<span class="tok-function">${escStr(word)}</span>`;
+          } else if (/^[A-Z][a-z]/.test(word) && word.length > 1) {
+            result += `<span class="tok-type">${escStr(word)}</span>`;
+          } else if (isCpp && /^[A-Z]/.test(word) && word.length > 1) {
+            result += `<span class="tok-type">${escStr(word)}</span>`;
+          } else if (isRust && /^[A-Z]/.test(word)) {
+            result += `<span class="tok-type">${escStr(word)}</span>`;
+          } else {
+            result += escStr(word);
+          }
+        }
+        i = j; continue;
+      }
+
+      /* Operators */
+      if ('=+-*/<>!&|^~%?:'.includes(c)) {
+        let j = i + 1;
+        if ('=+-<>!&|^'.includes(c) && peek(1) === '=') j++;
+        if ('+-<>'.includes(c) && peek(1) === c) { j++; if (peek(2) === '=') j++; }
+        if ((c === '&' && peek(1) === '&') || (c === '|' && peek(1) === '|')) j++;
+        if (c === '-' && peek(1) === '>') j++;
+        if (c === ':' && peek(1) === ':') j++;
+        if (c === '.' && peek(1) === '.' && peek(2) === '.') j += 3;
+        result += `<span class="tok-operator">${escStr(code.substring(i, j))}</span>`;
+        i = j; continue;
+      }
+
+      /* Punctuation */
+      if ('(){}[];,.'.includes(c)) {
+        result += `<span class="tok-punct">${escCh(c)}</span>`;
+        i++; continue;
+      }
+
+      /* Default */
+      result += escCh(c);
+      i++;
+    }
+    return result;
+  }
+
+  /* === Update highlight === */
+  function updateHighlight() {
+    const code = codeInput.value;
+    detectedLang = detectLanguage(code);
+    highlightPre.innerHTML = tokenize(code, detectedLang) + '\n';
+
+    /* Update lang badge */
+    const labels = {
+      c:'C',
+      javascript:'JS',
+      python:'PY',
+      typescript:'TS',
+      java:'JV',
+      cpp:'C++',
+      go:'GO',
+      rust:'RS',
+      php:'PHP',
+      ruby:'RB',
+      swift:'SW'
+    };
+    const badge = editorLangBadge;
+    if (code.trim().length > 0 && langSel.value === 'auto') {
+      badge.textContent = labels[detectedLang] || detectedLang.toUpperCase().slice(0,2);
+      badge.classList.add('visible');
+    } else if (langSel.value !== 'auto') {
+      badge.textContent = labels[langSel.value] || langSel.toUpperCase().slice(0,2);
+      badge.classList.add('visible');
+    } else {
+      badge.classList.remove('visible');
+    }
+  }
+
+  /* === Gutter === */
+  function updateGutter() {
+    const n = codeInput.value.split('\n').length;
+    const cursorLine = codeInput.value.substring(0, codeInput.selectionStart).split('\n').length;
+    let h = '';
+    for (let i = 1; i <= n; i++) {
+      h += `<div${i === cursorLine ? ' class="active-line"' : ''}>${i}</div>`;
+    }
+    gutter.innerHTML = h;
+
+    /* Active line background */
+    const lineH = 12.5 * 1.75; /* font-size * line-height */
+    const top = (cursorLine - 1) * lineH + 16 - codeInput.scrollTop;
+    activeLineBg.style.top = top + 'px';
+    activeLineBg.style.height = lineH + 'px';
+    activeLineBg.style.display = codeInput.value.trim() ? 'block' : 'none';
+  }
+
+  function updateInfo() {
+    const v = codeInput.value;
+    const lines = v ? v.split('\n').length : 0;
+    charInfo.textContent = `${v.length} chars \u00B7 ${lines} line${lines !== 1 ? 's' : ''}`;
+  }
+
+  function onEditorChange() {
+    updateGutter(); updateInfo(); updateHighlight();
+    updateCursorVis();
+  }
+
+  codeInput.addEventListener('input', onEditorChange);
+  codeInput.addEventListener('scroll', () => {
+    gutter.scrollTop = codeInput.scrollTop;
+    highlightPre.scrollTop = codeInput.scrollTop;
+    highlightPre.scrollLeft = codeInput.scrollLeft;
+    updateGutter();
+  });
+  codeInput.addEventListener('click', updateGutter);
+  codeInput.addEventListener('keyup', (e) => {
+    updateGutter();
+    /* Re-highlight on keyup for cursor-related things */
+    if (['ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key)) updateHighlight();
+  });
+  langSel.addEventListener('change', updateHighlight);
+
+  /* Tab */
+  codeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = codeInput.selectionStart, end = codeInput.selectionEnd;
+      codeInput.value = codeInput.value.substring(0, s) + '  ' + codeInput.value.substring(end);
+      codeInput.selectionStart = codeInput.selectionEnd = s + 2;
+      onEditorChange();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); reviewCode(); }
+  });
+
+  /* === Actions === */
+  async function pasteCode() {
+    try {
+      const t = await navigator.clipboard.readText();
+      codeInput.value = t; onEditorChange();
+      toast('Pasted from clipboard', 'ok');
+    } catch { toast('Cannot access clipboard', 'err'); }
+  }
+  function clearCode() {
+    codeInput.value = ''; onEditorChange(); updateCursorVis();
+    resultsArea.innerHTML = ''; resultsSep.classList.remove('visible');
+    codeInput.focus();
+  }
+  function loadSample() {
+    codeInput.value = 
+      `class Solution {
+public:
+    int numberOfPoints(vector<vector<int>>& nums) {
+        unordered_set<int> set;
+
+        for(auto& num : nums){
+            int i = num[0];
+            while(i<=num[1]){
+                set.insert(i);
+                i++;
+            }
+        }
+        return set.size();
+    }
+};`;
+    onEditorChange();
+    updateCursorVis(); toast('Sample code loaded — click Review Code!', 'ok');
+  }
+
+  /* === Toast === */
+  function toast(msg, type) {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    const icons = { ok: '<i class="fas fa-check-circle" style="color:var(--accent)"></i>', err: '<i class="fas fa-circle-xmark" style="color:var(--error)"></i>', inf: '<i class="fas fa-circle-info" style="color:var(--info)"></i>' };
+    el.innerHTML = `${icons[type] || icons.inf}<span>${msg}</span>`;
+    wrap.appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 250); }, 2600);
+  }
+
+  /* === Review === */
+  async function reviewCode() {
+    const code = codeInput.value.trim();
+    if (!code) { toast('Paste some code first', 'err'); codeInput.focus(); return; }
+
+    reviewBtn.classList.add('loading');
+    reviewBtn.disabled = true;
+    reviewStartTime = performance.now();
+    resultsSep.classList.add('visible');
+
+    resultsArea.innerHTML = `<div class="loading-box"><div class="loading-spinner"></div><p>Analyzing your code<span class="loading-dots"><span></span><span></span><span></span></span></p><p class="sub">Checking for bugs, security issues, and optimizations...</p></div>`;
+
+    try {
+      const res = await fetch("https://codelens-ai.up.railway.app/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language: langSel.value === 'auto' ? detectedLang : langSel.value })
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      if (!data || data.error) {
+        resultsArea.innerHTML = `<div class="err-box"><i class="fas fa-triangle-exclamation"></i><div><h4>Backend Error</h4><p>${esc(data?.error || 'Invalid response from server')}</p></div></div>`;
+        toast('Review failed', 'err'); return;
+      }
+      renderResults(data);
+      toast('Review complete', 'ok');
+      setTimeout(() => resultsArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150);
+    } catch (err) {
+      resultsArea.innerHTML = `<div class="err-box"><i class="fas fa-triangle-exclamation"></i><div><h4>Connection Failed</h4><p>Could not reach <code>https://codelens-ai.up.railway.app/review</code>. Ensure the backend is running.<br>Error: ${esc(err.message)}</p></div></div>`;
+      toast('Connection failed', 'err');
+    } finally {
+      reviewBtn.classList.remove('loading');
+      reviewBtn.disabled = false;
+    }
+  }
+
+  /* === Render Results === */
+  function renderResults(data) {
+    const elapsed = Math.round(performance.now() - reviewStartTime);
+    let score = data.score ?? data.rating ?? data.overall_score ?? null;
+    if (!score && data.issues) score = Math.max(0, 100 - data.issues.length * 10);
+    if (typeof score === 'string') { const m = score.match(/(\d+)/); score = m ? parseInt(m[1]) : null; }
+    if (score !== null) score = Math.min(100, Math.max(0, Math.round(score)));
+
+    const bugs = data.bugs ?? [];
+    const secIssues = data.security_issues ?? [];
+    const perfIssues = data.performance_issues ?? [];
+    const optSuggestions = data.optimization_suggestions ?? [];
+    const optimizedCode = data.optimized_code ?? '';
+    const timeCx = data.time_complexity ?? '';
+    const spaceCx = data.space_complexity ?? '';
+    const verdict = data.final_verdict ?? '';
+    const summary = data.summary ?? data.overview ?? data.message ?? '';
+
+    let rawIssues = [
+      ...(data.issues ?? []),
+      ...bugs.map(b => ({ line: b.line, severity: b.severity || 'high', type: 'bug', problem: b.problem, fix: b.fix })),
+      ...secIssues.map(s => ({ line: s.line, severity: s.severity || 'critical', type: 'security', problem: s.vulnerability, fix: s.fix })),
+      ...perfIssues.map(p => ({ line: p.line, severity: 'warning', type: 'performance', problem: p.issue, fix: p.optimization })),
+    ];
+
+    const issues = rawIssues.map(raw => {
+      let sev = (raw.type ?? raw.severity ?? 'info').toLowerCase();
+      if (sev === 'bug') sev = 'error';
+      else if (sev === 'inefficiency') sev = 'warning';
+      else if (sev === 'edge_case') sev = 'info';
+      let ns = 'inf';
+      if (sev.includes('error') || sev.includes('critical')) ns = 'err';
+      else if (sev.includes('warn') || sev.includes('medium')) ns = 'wrn';
+      else if (sev.includes('success') || sev.includes('good') || sev.includes('pass')) ns = 'ok';
+      return { cls: ns, title: raw.problem ?? raw.title ?? 'Issue', desc: raw.problem ?? '', line: raw.line ?? null, fix: raw.fix ?? null };
+    });
+
+    const counts = { err: 0, wrn: 0, inf: 0, ok: 0 };
+    issues.forEach(i => counts[i.cls]++);
+    const total = issues.length;
+
+    let ringColor = 'var(--accent)';
+    if (score !== null) { if (score < 40) ringColor = 'var(--error)'; else if (score < 70) ringColor = 'var(--warning)'; }
+    const C = 2 * Math.PI * 50;
+    const off = score !== null ? C - (score / 100) * C : C;
+
+    let h = '<div class="results-wrap">';
+    h += `<div class="results-head"><h2><i class="fas fa-clipboard-check"></i> Review Results</h2><span class="results-time">${elapsed}ms</span></div>`;
+
+    /* Score */
+    h += `<div class="score-panel">`;
+    if (score !== null) {
+      h += `<div class="ring-wrap"><svg viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="50"/><circle class="ring-fg" cx="60" cy="60" r="50" stroke="${ringColor}" stroke-dasharray="${C}" stroke-dashoffset="${C}" id="ringArc"/></svg><div class="ring-center"><div class="ring-num" style="color:${ringColor}">${score}</div><div class="ring-lbl">Score</div></div></div>`;
+    }
+    h += '<div class="score-info">';
+    if (summary) h += `<div class="score-summary">${esc(summary)}</div>`;
+    h += '<div class="stat-row">';
+    if (counts.err) h += `<span class="chip err"><i class="fas fa-circle-xmark"></i> ${counts.err} Error${counts.err > 1 ? 's' : ''}</span>`;
+    if (counts.wrn) h += `<span class="chip wrn"><i class="fas fa-triangle-exclamation"></i> ${counts.wrn} Warning${counts.wrn > 1 ? 's' : ''}</span>`;
+    if (counts.inf) h += `<span class="chip inf"><i class="fas fa-circle-info"></i> ${counts.inf} Suggestion${counts.inf > 1 ? 's' : ''}</span>`;
+    if (counts.ok) h += `<span class="chip ok"><i class="fas fa-circle-check"></i> ${counts.ok} Passed</span>`;
+    if (total === 0 && score !== null) h += `<span class="chip ok"><i class="fas fa-circle-check"></i> All clear</span>`;
+    h += '</div></div></div>';
+
+    /* Issues */
+    if (total > 0) {
+      h += `<div class="filter-bar" id="filterBar">
+        <button class="filter-btn active" data-f="all" onclick="filterIssues('all',this)">All <span class="cnt">${total}</span></button>
+        ${counts.err ? `<button class="filter-btn" data-f="err" onclick="filterIssues('err',this)">Errors <span class="cnt">${counts.err}</span></button>` : ''}
+        ${counts.wrn ? `<button class="filter-btn" data-f="wrn" onclick="filterIssues('wrn',this)">Warnings <span class="cnt">${counts.wrn}</span></button>` : ''}
+        ${counts.inf ? `<button class="filter-btn" data-f="inf" onclick="filterIssues('inf',this)">Info <span class="cnt">${counts.inf}</span></button>` : ''}
+        ${counts.ok ? `<button class="filter-btn" data-f="ok" onclick="filterIssues('ok',this)">Passed <span class="cnt">${counts.ok}</span></button>` : ''}
+      </div>`;
+      h += '<div class="issues-list" id="issuesList">';
+      const icoMap = { err: 'fa-circle-xmark', wrn: 'fa-triangle-exclamation', inf: 'fa-circle-info', ok: 'fa-circle-check' };
+      const tagMap = { err: 'Error', wrn: 'Warning', inf: 'Info', ok: 'Passed' };
+      issues.forEach((iss, i) => {
+        h += `<div class="issue ${iss.cls}" data-cls="${iss.cls}" style="animation-delay:${i * 0.05}s">
+          <div class="issue-top"><div class="issue-accent"></div><div class="issue-ico"><i class="fas ${icoMap[iss.cls]}"></i></div>
+          <div class="issue-content"><div class="issue-hdr"><span class="issue-title">${esc(iss.title)}</span><span class="issue-tag">${tagMap[iss.cls]}</span></div>
+          ${iss.desc ? `<div class="issue-desc">${esc(iss.desc)}</div>` : ''}
+          ${iss.line ? `<div class="issue-loc"><i class="fas fa-map-pin"></i> Line ${iss.line}</div>` : ''}</div></div>
+          ${iss.fix ? `<div class="fix-block"><div class="fix-lbl">Suggested Fix</div><div class="fix-code">${esc(iss.fix)}</div></div>` : ''}
+        </div>`;
+      });
+      h += '</div>';
+    } else if (score !== null && score >= 70) {
+      h += `<div class="empty-box"><i class="fas fa-champagne-glasses"></i><h3>Looking Good</h3><p>No issues found. Your code passed the review.</p></div>`;
+    }
+
+    /* Complexity */
+    if (timeCx || spaceCx) {
+      function splitCx(raw) {
+        if (!raw) return { notation: 'N/A', desc: '' };
+        const m = raw.match(/^(O\([^)]*\).*?)(?:\.\s*|\.\s*$)/);
+        if (m) return { notation: m[1].replace(/\.$/, ''), desc: raw.slice(m[0].length).trim() };
+        const dot = raw.indexOf('.');
+        if (dot > 0) return { notation: raw.slice(0, dot + 1), desc: raw.slice(dot + 1).trim() };
+        return { notation: raw, desc: '' };
+      }
+      const tc = splitCx(timeCx), sc = splitCx(spaceCx);
+      h += `<div class="section-card" style="animation-delay:0.15s"><div class="section-hdr"><div class="section-ico complexity-ico"><i class="fas fa-gauge-high"></i></div><h3>Complexity Analysis</h3></div><div class="section-body"><div class="complexity-grid"><div class="cx-card"><div class="cx-label">Time Complexity</div><div class="cx-val">${esc(tc.notation)}</div>${tc.desc ? `<div class="cx-desc">${esc(tc.desc)}</div>` : ''}</div><div class="cx-card"><div class="cx-label">Space Complexity</div><div class="cx-val">${esc(sc.notation)}</div>${sc.desc ? `<div class="cx-desc">${esc(sc.desc)}</div>` : ''}</div></div></div></div>`;
+    }
+
+    /* Optimizations */
+    if (optSuggestions.length > 0) {
+      h += `<div class="section-card" style="animation-delay:0.2s"><div class="section-hdr"><div class="section-ico opt-ico"><i class="fas fa-rocket"></i></div><h3>Optimization Suggestions</h3></div><div class="section-body"><ul class="opt-list">${optSuggestions.map((s, i) => `<li><span class="opt-num">${String(i + 1).padStart(2, '0')}</span>${esc(s)}</li>`).join('')}</ul></div></div>`;
+    }
+
+    /* Optimized Code — with syntax highlighting */
+    if (optimizedCode) {
+      const optLang = detectLanguage(optimizedCode);
+      const highlighted = tokenize(optimizedCode, optLang);
+      h += `<div class="section-card" style="animation-delay:0.25s"><div class="section-hdr"><div class="section-ico optcode-ico"><i class="fas fa-code"></i></div><h3>Optimized Code</h3></div><div class="section-body"><div class="code-block"><div class="code-block-bar"><span>optimized</span><button class="copy-btn" onclick="copyCode(this)"><i class="fas fa-copy"></i> Copy</button></div><pre>${highlighted}</pre></div></div></div>`;
+    }
+
+    /* Verdict */
+    if (verdict) {
+      h += `<div class="section-card" style="animation-delay:0.3s;border-color:var(--accent-border);"><div class="section-hdr"><div class="section-ico verdict-ico"><i class="fas fa-award"></i></div><h3>Final Verdict</h3></div><div class="section-body"><p class="verdict-text">${esc(verdict)}</p></div></div>`;
+    }
+
+    h += '</div>';
+    resultsArea.innerHTML = h;
+
+    const scorePanel = resultsArea.querySelector('.score-panel');
+    if (scorePanel && score !== null) scorePanel.style.borderTop = `2px solid ${ringColor}`;
+
+    if (score !== null) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const arc = document.getElementById('ringArc');
+        if (arc) arc.style.strokeDashoffset = off;
+      }));
+    }
+  }
+
+  function filterIssues(cls, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.issue').forEach(el => { el.style.display = (cls === 'all' || el.dataset.cls === cls) ? '' : 'none'; });
+  }
+
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.textContent).then(() => {
+      btn.innerHTML = '<i class="fas fa-check"></i> Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; btn.classList.remove('copied'); }, 1800);
+    });
+  }
+
+  function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+
+  /* === Drag & Drop === */
+  const dragOverlay = document.getElementById('dragOverlay');
+  let dragCounter = 0;
+  document.addEventListener('dragenter', e => { e.preventDefault(); dragCounter++; dragOverlay.classList.add('show'); });
+  document.addEventListener('dragleave', () => { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dragOverlay.classList.remove('show'); } });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault(); dragCounter = 0; dragOverlay.classList.remove('show');
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => { codeInput.value = ev.target.result; onEditorChange(); toast('Loaded: ' + file.name, 'ok'); };
+    reader.readAsText(file);
+  });
+
+  /* === Resize Handle === */
+  const resizeHandle = document.getElementById('resizeHandle');
+  const editorBodyEl = document.querySelector('.editor-body');
+  let isResizing = false, rsStartY = 0, rsStartH = 0;
+  resizeHandle.addEventListener('mousedown', e => {
+    isResizing = true; rsStartY = e.clientY; rsStartH = editorBodyEl.offsetHeight;
+    document.body.style.cursor = 'ns-resize'; document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isResizing) return;
+    const newH = Math.max(180, Math.min(800, rsStartH + (e.clientY - rsStartY)));
+    editorBodyEl.style.minHeight = newH + 'px'; editorBodyEl.style.maxHeight = newH + 'px';
+    updateGutter();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!isResizing) return;
+    isResizing = false; document.body.style.cursor = ''; document.body.style.userSelect = '';
+  });
+
+    loadSample();
+  updateCursorVis();
+</script>
+</body>
+</html>
+
