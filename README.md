@@ -76,22 +76,6 @@ The application supports multiple programming languages including C++, Python, J
 
 ---
 
-# 🖥️ Preview
-
-## Home Page
-
-<p align="center">
-<img src="assets/home.png" width="95%">
-</p>
-
-## Review Result
-
-<p align="center">
-<img src="assets/result.png" width="95%">
-</p>
-
----
-
 # 🏗️ Architecture
 
 ```
