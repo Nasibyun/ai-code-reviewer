@@ -1,7 +1,7 @@
 # ⚡ CodeLens — AI Code Reviewer
 
 <p align="center">
-  <img src="hero.png" width="100%">
+  <img src="image.png" width="100%">
 </p>
 
 <p align="center">
