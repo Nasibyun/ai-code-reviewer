@@ -21,8 +21,8 @@
 # 🚀 Live Demo
 
 **🌐 Live:** 
-Frontend : https://codelens-repo.vercel.app/
-Backend : https://ai-code-reviewer-1zth.onrender.com
+  - Frontend : https://codelens-repo.vercel.app/ </br>
+  - Backend : https://ai-code-reviewer-1zth.onrender.com
 
 ---
 
