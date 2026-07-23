@@ -1475,7 +1475,7 @@ public:
     resultsArea.innerHTML = `<div class="loading-box"><div class="loading-spinner"></div><p>Analyzing your code<span class="loading-dots"><span></span><span></span><span></span></span></p><p class="sub">Checking for bugs, security issues, and optimizations...</p></div>`;
 
     try {
-      const res = await fetch("https://codelens-repo.vercel.app/", {
+      const res = await fetch("https://ai-code-reviewer-1zth.onrender.com/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language: langSel.value === 'auto' ? detectedLang : langSel.value })
@@ -1490,7 +1490,7 @@ public:
       toast('Review complete', 'ok');
       setTimeout(() => resultsArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150);
     } catch (err) {
-      resultsArea.innerHTML = `<div class="err-box"><i class="fas fa-triangle-exclamation"></i><div><h4>Connection Failed</h4><p>Could not reach <code>https://codelens-repo.vercel.app/</code>. Ensure the backend is running.<br>Error: ${esc(err.message)}</p></div></div>`;
+      resultsArea.innerHTML = `<div class="err-box"><i class="fas fa-triangle-exclamation"></i><div><h4>Connection Failed</h4><p>Could not reach <code>https://ai-code-reviewer-1zth.onrender.com/review</code>. Ensure the backend is running.<br>Error: ${esc(err.message)}</p></div></div>`;
       toast('Connection failed', 'err');
     } finally {
       reviewBtn.classList.remove('loading');
