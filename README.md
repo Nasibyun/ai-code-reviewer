@@ -20,7 +20,9 @@
 
 # 🚀 Live Demo
 
-**🌐 Live:** https://codelens-repo.vercel.app/
+**🌐 Live:** 
+Frontend : https://codelens-repo.vercel.app/
+Backend : https://ai-code-reviewer-1zth.onrender.com
 
 ---
 
